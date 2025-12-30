@@ -2,8 +2,7 @@
 
 A futuristic, single-file web application that generates full slide decks using AI, controllable via webcam hand gestures ("Minority Report" style).
 
-![Project Banner](https://via.placeholder.com/1000x400?text=AI+Presenter+Demo+Image)
-*(Replace this link with a screenshot of your app)*
+![Project Banner](blob:https://web.whatsapp.com/86b99c25-3a9c-48b9-acba-f37e27204803)
 
 ## ✨ Features
 
