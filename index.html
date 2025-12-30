@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Presenter - Smart Edit</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@latest/dist/pose-detection.min.js"></script>
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+  
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=IBM+Plex+Mono:wght@400;700&family=Inter:wght@400;700&family=Pacifico&family=Comic+Neue:wght@700&display=swap" rel="stylesheet">
+  
+  <style>
+    /* --- THEME ENGINE --- */
+    :root {
+      --font-heading: 'Inter', sans-serif;
+      --font-body: 'Inter', sans-serif;
+      --color-bg: #111;
+      --color-panel: #222;
+      --color-slide: #333;
+      --color-text: #eee;
+      --color-text-dim: #999;
+      --color-accent: #00ffaa;
+      --color-accent-dark: #000;
+      --color-border: rgba(255, 255, 255, 0.3);
+      --bg-image: linear-gradient(180deg, #222, #111);
+      --panel-image: linear-gradient(180deg, #333, #222);
+      --slide-image: linear-gradient(180deg, #191919, #111111);
+      --accent-image: linear-gradient(90deg, #00ffaa, #00ccee);
+      --radius: 8px;
+      --shadow: 0 0 15px rgba(0,0,0,0.2);
+    }
+
+    body[data-theme="retro"] {
+      --font-heading: 'Orbitron', sans-serif;
+      --font-body: 'IBM Plex Mono', monospace;
+      --color-bg: #0a0a0a;
+      --color-panel: #1a1a1a;
+      --color-slide: #111111;
+      --color-text: #e0e0e0;
+      --color-text-dim: #999999;
+      --color-accent: #00ffaa;
+      --color-accent-dark: #0a0a0a;
+      --color-border: rgba(0, 255, 170, 0.4);
+      --bg-image: radial-gradient(ellipse at bottom, #0a101a 0%, #0a0a0a 70%);
+      --panel-image: linear-gradient(180deg, #222222, #1a1a1a);
+      --slide-image: linear-gradient(180deg, #151515, #111111);
+      --accent-image: linear-gradient(90deg, #00ffaa, #00ccee);
+      --radius: 4px;
+      --shadow: 0 0 20px rgba(0, 255, 170, 0.15);
+      --shadow-text: 0 0 8px rgba(0, 255, 170, 0.3);
+    }
+
+    body[data-theme="educational"] {
+      --font-heading: 'Inter', sans-serif;
+      --font-body: 'Inter', sans-serif;
+      --color-bg: #ffffff;
+      --color-panel: #ffffff;
+      --color-slide: #ffffff;
+      --color-text: #111827;
+      --color-text-dim: #6b7280;
+      --color-accent: #00bfa5;
+      --color-accent-dark: #ffffff;
+      --color-border: #f0f0f0;
+      --bg-image: none;
+      --panel-image: none;
+      --slide-image: none;
+      --accent-image: linear-gradient(90deg, #00bfa5, #00a896);
+      --radius: 8px;
+      --shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      --shadow-text: none;
+    }
+    
+    body[data-theme="creative"] {
+      --font-heading: 'Pacifico', cursive;
+      --font-body: 'Comic Neue', cursive;
+      --color-bg: #fff;
+      --color-panel: #fff;
+      --color-slide: #fff;
+      --color-text: #2c3e50;
+      --color-text-dim: #7f8c8d;
+      --color-accent: #e74c3c;
+      --color-accent-dark: #ffffff;
+      --color-border: #2c3e50;
+      --bg-image: linear-gradient(45deg, #f3a683, #f7d794);
+      --panel-image: linear-gradient(180deg, #ffffff, #fafafa);
+      --slide-image: linear-gradient(180deg, #ffffff, #fafafa);
+      --accent-image: linear-gradient(90deg, #e74c3c, #f1c40f);
+      --radius: 12px;
+      --shadow: 0 8px 16px rgba(44, 62, 80, 0.2);
+      --shadow-text: none;
+    }
+
+    /* --- GLOBAL STYLES --- */
+    html, body { height: 100%; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+    body {
+      font-family: var(--font-body);
+      background-color: var(--color-bg);
+      background-image: var(--bg-image);
+      color: var(--color-text);
+      min-height: 100vh;
+      overflow: hidden;
+      transition: background-color 0.3s ease;
+    }
+    
+    /* --- INPUT VIEW --- */
+    #input-view > .w-full.max-w-lg {
+      background-color: var(--color-panel);
+      background-image: var(--panel-image);
+      border-radius: var(--radius);
+      padding: 28px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--color-border);
+    }
+    textarea#topic-input {
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      padding: 12px;
+      border-radius: var(--radius);
+      color: var(--color-text);
+      font-family: var(--font-body);
+    }
+    textarea#topic-input:focus { border-color: var(--color-accent); outline: none; }
+
+    /* THEME SELECTOR */
+    .theme-selector { display: flex; justify-content: space-around; margin-top: 1rem; }
+    .theme-selector label {
+      display: flex; flex-direction: column; align-items: center; cursor: pointer; padding: 8px;
+      border-radius: var(--radius); border: 2px solid transparent; transition: all 0.2s ease;
+      font-size: 0.8rem; color: var(--color-text-dim);
+    }
+    .theme-selector input { opacity: 0; width: 0; height: 0; }
+    .theme-selector .icon {
+      width: 40px; height: 40px; border: 2px solid var(--color-border);
+      border-radius: 50%; margin-bottom: 4px; background-size: cover;
+    }
+    .icon-retro { background-image: linear-gradient(45deg, #00ffaa, #0a0a0a 50%); }
+    .icon-edu { background-image: linear-gradient(45deg, #00bfa5, #ffffff 50%); }
+    .icon-creative { background-image: linear-gradient(45deg, #e74c3c, #f1c40f 50%); }
+    .theme-selector input:checked + label { border-color: var(--color-accent); color: var(--color-text); }
+    .theme-selector input:checked + label .icon { border-color: var(--color-accent); transform: scale(1.1); }
+
+    /* BUTTONS */
+    button {
+      font-family: var(--font-body); font-weight: 700; border-radius: var(--radius);
+      transition: all .15s ease-out; text-transform: uppercase; letter-spacing: 0.1em;
+      border: 1px solid var(--color-border);
+      cursor: pointer;
+    }
+    #generate-btn {
+      background: var(--accent-image); color: var(--color-accent-dark); border: none; padding: 12px 18px;
+    }
+    #generate-btn:hover { opacity: 0.85; box-shadow: var(--shadow); }
+    #upload-trigger-btn {
+      background: transparent; color: var(--color-text); border: 1px dashed var(--color-border);
+      padding: 12px; width: 100%; margin-top: 10px; cursor: pointer;
+    }
+    #upload-trigger-btn:hover { border-color: var(--color-accent); color: var(--color-accent); }
+    
+    #prev-btn, #next-btn, #back-btn, #download-btn {
+      background: rgba(0,0,0,0.5); color: var(--color-accent); padding: 10px 16px;
+      border: 1px solid var(--color-border); backdrop-filter: blur(4px);
+    }
+    #prev-btn:hover, #next-btn:hover, #back-btn:hover, #download-btn:hover {
+      background: var(--color-accent); color: var(--color-accent-dark);
+    }
+    
+    /* GESTURE TOGGLE BTN */
+    #gesture-toggle-btn {
+      background: rgba(0, 0, 0, 0.9);
+      border: 1px solid var(--color-border);
+      color: var(--color-text);
+      backdrop-filter: blur(4px);
+      transition: all 0.3s ease;
+    }
+
+    #gesture-toggle-btn:hover {
+      background: var(--color-panel);
+      border-color: var(--color-accent);
+    }
+
+    /* When gestures are OFF */
+    #gesture-toggle-btn.disabled {
+      border-color: #ff4444;
+      color: #ff4444;
+    }
+    #gesture-toggle-btn.disabled span {
+      background-color: #ff4444;
+      box-shadow: 0 0 5px #ff4444;
+    }
+
+    /* When gestures are ON */
+    #gesture-toggle-btn:not(.disabled) span {
+      background-color: var(--color-accent);
+      box-shadow: 0 0 8px var(--color-accent);
+    }
+
+    /* --- PRESENTATION VIEW --- */
+    #slide-container {
+      width: 100%; max-width: 1200px; aspect-ratio: 16 / 9;
+      border-radius: var(--radius); padding: 28px; overflow: hidden;
+      background-color: var(--color-slide); background-image: var(--slide-image);
+      border: 1px solid var(--color-border); box-shadow: var(--shadow);
+      color: var(--color-text); display: flex; align-items: center; justify-content: center;
+      position: relative;
+    }
+    
+    /* Content Styles */
+    #slide-content h1 { font-family: var(--font-heading); font-size: 2.5rem; color: var(--color-accent); margin-bottom: 1.5rem; outline: none; border-bottom: 1px dashed transparent; }
+    #slide-content h1:focus { border-bottom-color: var(--color-accent); }
+    
+    #slide-content div[contenteditable] { outline: none; border: 1px dashed transparent; }
+    #slide-content div[contenteditable]:focus { border-color: var(--color-accent); }
+
+    #slide-content ul { list-style-type: square; padding-left: 2rem; font-size: 1.15rem; line-height: 1.6; }
+    #slide-content li { margin-bottom: 0.5rem; }
+    
+    /* Image in Slide */
+    .slide-img-container {
+      width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.2); border-radius: var(--radius); overflow: hidden;
+      border: 1px solid var(--color-border); position: relative;
+    }
+    .slide-img-container img {
+      width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s ease;
+    }
+    /* Edit Image Overlay */
+    .edit-img-overlay {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5); opacity: 0; transition: opacity 0.2s;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+    }
+    .slide-img-container:hover .edit-img-overlay { opacity: 1; }
+    .edit-btn {
+      background: var(--color-accent); color: #000; padding: 8px 16px;
+      font-weight: bold; border-radius: 20px; text-transform: uppercase; font-size: 0.8rem;
+    }
+
+    /* PDF Canvas */
+    #pdf-canvas { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+    /* Webcam & Watermark */
+    #webcam {
+      width: 220px; border-radius: var(--radius); border: 1px solid var(--color-border);
+      object-fit: cover; background: #111; position: fixed; bottom: 4px; left: 4px; z-index: 20;
+      /* Hidden by default until toggled ON */
+      display: none; 
+    }
+    
+    #watermark {
+      position: fixed; top: 18px; left: 50%; transform: translateX(-50%); z-index: 60;
+      font-family: var(--font-heading); font-size: 16px; color: var(--color-accent);
+      background: rgba(10, 10, 10, 0.7); padding: 6px 12px; border-radius: var(--radius);
+      border: 1px solid var(--color-border); letter-spacing: 0.1em; backdrop-filter: blur(4px);
+      display: none;
+    }
+
+    .slide-anim { animation: fadeIn 0.5s ease-in-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+
+<body class="h-full" data-theme="retro">
+
+  <div id="watermark">AI PRESENTER</div>
+
+  <div id="input-view" class="flex h-full items-center justify-center p-4">
+    <div class="w-full max-w-lg rounded-xl p-8 relative">
+      <h1 class="text-center text-3xl font-bold mb-2">AI Presenter</h1>
+      <p class="text-center text-sm text-[var(--color-text-dim)]">Enter a topic (e.g. "Space 8 slides").</p>
+      
+      <div class="mt-6 border-b border-[var(--color-border)] pb-6 mb-6">
+        <label class="block text-sm font-medium mb-2 text-[var(--color-text-dim)]">Topic:</label>
+        <textarea id="topic-input" rows="3" class="w-full" placeholder="e.g. 'Future of Space Travel 10 slides'"></textarea>
+
+        <div class="theme-selector">
+          <input type="radio" id="theme-retro" name="theme" value="retro" checked>
+          <label for="theme-retro"><span class="icon icon-retro"></span>Retro</label>
+          <input type="radio" id="theme-edu" name="theme" value="educational">
+          <label for="theme-edu"><span class="icon icon-edu"></span>Edu</label>
+          <input type="radio" id="theme-creative" name="theme" value="creative">
+          <label for="theme-creative"><span class="icon icon-creative"></span>Fun</label>
+        </div>
+
+        <button id="generate-btn" class="w-full mt-4 flex justify-center items-center">
+          <span id="generate-btn-text">Generate Presentation</span>
+          <svg id="loading-spinner" class="animate-spin ml-3 h-5 w-5 hidden" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </button>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium mb-2 text-[var(--color-text-dim)]">Or Upload Existing PDF:</label>
+        <input type="file" id="pdf-upload" accept="application/pdf" class="hidden">
+        <button id="upload-trigger-btn" onclick="document.getElementById('pdf-upload').click()">
+          📂 Click to Upload PDF
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="presentation-view" class="hidden h-full w-full flex-col items-center justify-center p-4">
+    
+    <div id="slide-container">
+      <div id="slide-content" class="w-full h-full hidden"></div>
+      <canvas id="pdf-canvas" class="hidden"></canvas>
+    </div>
+
+    <input type="file" id="slide-image-upload" accept="image/*" class="hidden">
+
+    <div id="slide-counter" class="absolute bottom-20 text-lg font-medium z-10 bg-black/50 px-4 py-2 rounded border border-white/20">
+      Slide 1 / 1
+    </div>
+
+    <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-20 flex gap-4">
+      <button id="prev-btn">&larr; Prev</button>
+      <button id="next-btn">Next &rarr;</button>
+    </div>
+    
+    <button id="back-btn" class="fixed top-6 left-6 z-30">
+      &larr; Home
+    </button>
+    
+    <button id="download-btn" class="fixed top-6 right-6 z-30 hidden">
+      Download .pptx ⬇
+    </button>
+
+    <button id="gesture-toggle-btn" class="fixed bottom-36 left-4 z-50 text-xs px-2 py-1 flex items-center gap-2 disabled">
+        <span id="gesture-indicator" class="w-2 h-2 rounded-full bg-red-500"></span>
+        Gestures: OFF
+    </button>
+
+    <video id="webcam" autoplay muted playsinline></video>
+  </div>
+
+  <script type="module">
+    // --- CONFIG ---
+    const apiKey = "AIzaSyAwvHCcLRZWi2S4Pgp3UivloKO8Qz-mNWQ"; 
+    // Pollinations Key maintained
+    const POLLINATIONS_KEY = "sk_vBug9ZMlqfw1HIR0GOsC710ugfWU9ECq";
+
+    const MODEL_NAME = "gemini-2.5-flash-preview-09-2025";
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${apiKey}`;
+
+    // --- STATE ---
+    let appMode = 'ai'; 
+    let slides = [];
+    let pdfDoc = null;
+    let currentSlide = 0;
+    let currentTheme = 'retro';
+    
+    // Gestures
+    let detector, webcamStream;
+    let isGestureCooldown = false;
+    let gesturesEnabled = false; 
+    const GESTURE_COOLDOWN = 1500;
+
+    // --- DOM ---
+    const inputView = document.getElementById("input-view");
+    const presentationView = document.getElementById("presentation-view");
+    const slideContainer = document.getElementById("slide-container");
+    const slideContent = document.getElementById("slide-content");
+    const pdfCanvas = document.getElementById("pdf-canvas");
+    const slideCounter = document.getElementById("slide-counter");
+    const downloadBtn = document.getElementById("download-btn");
+    const webcamVideo = document.getElementById('webcam');
+    const imageUploadInput = document.getElementById('slide-image-upload');
+    
+    // --- THEME LOGIC ---
+    document.querySelectorAll('input[name="theme"]').forEach(r => {
+      r.addEventListener('change', (e) => {
+        document.body.dataset.theme = e.target.value;
+        currentTheme = e.target.value;
+      });
+    });
+
+    // --- VIEW SWITCHING ---
+    function switchView(view) {
+      const watermark = document.getElementById("watermark");
+      if (view === 'input') {
+        inputView.classList.remove("hidden");
+        inputView.classList.add("flex");
+        presentationView.classList.add("hidden");
+        presentationView.classList.remove("flex");
+        watermark.style.display = 'none';
+        if (gesturesEnabled) toggleGestures(); 
+      } else {
+        inputView.classList.add("hidden");
+        inputView.classList.remove("flex");
+        presentationView.classList.remove("hidden");
+        presentationView.classList.add("flex");
+        watermark.style.display = 'block';
+      }
+    }
+    switchView('input');
+
+    // --- 1. AI GENERATION LOGIC (WITH SMART COUNT) ---
+    document.getElementById("generate-btn").addEventListener("click", async () => {
+      const topicInput = document.getElementById("topic-input").value;
+      if (!topicInput) return alert("Please enter a topic");
+      
+      setLoading(true);
+      appMode = 'ai';
+      
+      // 1. Detect Slide Count from Input
+      let slideCount = 5; // Default
+      const countMatch = topicInput.match(/(\d+)\s*slides?/i);
+      
+      if (countMatch) {
+        slideCount = parseInt(countMatch[1]);
+        // 2. Safety Limit (Max 20)
+        if (slideCount > 20) {
+            slideCount = 20;
+            alert("Maximum slide limit is 20. Generating 20 slides.");
+        } else if (slideCount < 1) {
+            slideCount = 1;
+        }
+      }
+
+      // PROMPT: Updated to request specific number of slides
+      const prompt = `Generate a JSON array of exactly ${slideCount} slides for a presentation on "${topicInput}".
+      Each object must have:
+      1. "title": string
+      2. "content": html string (ul/li/p)
+      3. "imagePrompt": A highly detailed, artistic, English visual description of an image representing this slide (no text in image).
+      Return ONLY JSON.`;
+      
+      try {
+        const res = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }]
+          })
+        });
+        const data = await res.json();
+        
+        if (!data.candidates) throw new Error("AI Text Generation Failed (Check API Key)");
+        
+        const text = data.candidates[0].content.parts[0].text;
+        const jsonStr = text.replace(/```json|```/g, '').trim();
+        slides = JSON.parse(jsonStr);
+        
+        // Setup View
+        currentSlide = 0;
+        slideContent.classList.remove('hidden');
+        pdfCanvas.classList.add('hidden');
+        downloadBtn.classList.remove('hidden');
+        
+        renderAiSlide();
+        switchView('presentation');
+      } catch (e) {
+        alert("Error generating: " + e.message);
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    function renderAiSlide() {
+      const slide = slides[currentSlide];
+      
+      // Determine Image Source: Custom Upload OR Pollinations AI
+      let imgUrl;
+      if (slide.customImage) {
+        imgUrl = slide.customImage; // User uploaded image
+      } else {
+        // Pollinations AI (Authenticated)
+        const promptEnc = encodeURIComponent(slide.imagePrompt || "Abstract");
+        imgUrl = `https://image.pollinations.ai/prompt/${promptEnc}?width=800&height=600&nologo=true&model=flux&key=${POLLINATIONS_KEY}`;
+      }
+      
+      slideContent.innerHTML = `
+        <div class="flex flex-row h-full gap-8">
+          <div class="w-1/2 flex flex-col justify-center">
+            <h1 contenteditable="true" id="slide-title-edit">${slide.title}</h1>
+            <div contenteditable="true" id="slide-content-edit">${slide.content}</div>
+          </div>
+          <div class="w-1/2 flex items-center justify-center p-2">
+            <div class="slide-img-container shadow-2xl group">
+              <img src="${imgUrl}" alt="Visual" loading="lazy" id="current-slide-img">
+              
+              <div class="edit-img-overlay" onclick="document.getElementById('slide-image-upload').click()">
+                <div class="edit-btn">📷 Change Image</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      // Attach Listeners for Editing
+      const titleEl = document.getElementById('slide-title-edit');
+      const contentEl = document.getElementById('slide-content-edit');
+
+      titleEl.addEventListener('input', () => {
+        slides[currentSlide].title = titleEl.innerText;
+      });
+
+      contentEl.addEventListener('input', () => {
+        slides[currentSlide].content = contentEl.innerHTML;
+      });
+      
+      slideCounter.innerText = `Slide ${currentSlide + 1} / ${slides.length}`;
+      slideContainer.classList.remove('slide-anim');
+      void slideContainer.offsetWidth;
+      slideContainer.classList.add('slide-anim');
+    }
+
+    // --- IMAGE UPLOAD HANDLER ---
+    imageUploadInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            // Save the Base64 image to the slide data
+            slides[currentSlide].customImage = event.target.result;
+            // Update the DOM immediately
+            const imgEl = document.getElementById('current-slide-img');
+            if (imgEl) imgEl.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+        
+        // Reset input so same file can be selected again if needed
+        imageUploadInput.value = '';
+    });
+
+    // --- 2. PDF UPLOAD LOGIC ---
+    document.getElementById("pdf-upload").addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const fileReader = new FileReader();
+      fileReader.onload = async function() {
+        const typedarray = new Uint8Array(this.result);
+        try {
+          pdfDoc = await pdfjsLib.getDocument(typedarray).promise;
+          appMode = 'pdf';
+          currentSlide = 1;
+          slideContent.classList.add('hidden');
+          pdfCanvas.classList.remove('hidden');
+          downloadBtn.classList.add('hidden');
+          renderPdfSlide();
+          switchView('presentation');
+        } catch (err) { alert("Error parsing PDF: " + err.message); }
+      };
+      fileReader.readAsArrayBuffer(file);
+    });
+
+    async function renderPdfSlide() {
+      const page = await pdfDoc.getPage(currentSlide);
+      const viewport = page.getViewport({ scale: 1.5 });
+      const context = pdfCanvas.getContext('2d');
+      pdfCanvas.height = viewport.height;
+      pdfCanvas.width = viewport.width;
+      await page.render({ canvasContext: context, viewport: viewport }).promise;
+      slideCounter.innerText = `Page ${currentSlide} / ${pdfDoc.numPages}`;
+    }
+
+    // --- 3. DOWNLOAD PPTX LOGIC ---
+    downloadBtn.addEventListener("click", () => {
+      if (appMode !== 'ai' || !slides.length) return;
+      
+      const pptx = new PptxGenJS();
+      pptx.layout = 'LAYOUT_16x9';
+      
+      const bgColors = { 'retro': '0a0a0a', 'educational': 'ffffff', 'creative': 'fff' };
+      const textColors = { 'retro': 'e0e0e0', 'educational': '111827', 'creative': '2c3e50' };
+      const bg = bgColors[currentTheme] || 'ffffff';
+      const color = textColors[currentTheme] || '000000';
+
+      slides.forEach((slide, idx) => {
+        let slideAdd = pptx.addSlide();
+        slideAdd.background = { color: bg };
+        
+        slideAdd.addText(slide.title, { x: 0.5, y: 0.5, w: '45%', fontSize: 24, bold: true, color: color });
+        
+        const cleanContent = slide.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        slideAdd.addText(cleanContent, { x: 0.5, y: 1.5, w: '45%', fontSize: 14, color: color });
+        
+        // Use Custom Image if exists, else Pollinations
+        let imgUrl;
+        if (slide.customImage) {
+            imgUrl = slide.customImage; // Base64 Data URI
+        } else if (slide.imagePrompt) {
+            const promptEnc = encodeURIComponent(slide.imagePrompt);
+            imgUrl = `https://image.pollinations.ai/prompt/${promptEnc}?width=800&height=600&nologo=true&model=flux&key=${POLLINATIONS_KEY}`;
+        }
+
+        if (imgUrl) {
+            slideAdd.addImage({ path: imgUrl, x: '50%', y: '10%', w: '45%', h: '80%' });
+        }
+      });
+
+      pptx.writeFile({ fileName: `Presentation.pptx` });
+    });
+
+    // --- NAVIGATION ---
+    function next() {
+      if (isGestureCooldown) return;
+      if (appMode === 'ai') {
+        if (currentSlide < slides.length - 1) { currentSlide++; renderAiSlide(); triggerCooldown(); }
+      } else {
+        if (currentSlide < pdfDoc.numPages) { currentSlide++; renderPdfSlide(); triggerCooldown(); }
+      }
+    }
+
+    function prev() {
+      if (isGestureCooldown) return;
+      if (appMode === 'ai') {
+        if (currentSlide > 0) { currentSlide--; renderAiSlide(); triggerCooldown(); }
+      } else {
+        if (currentSlide > 1) { currentSlide--; renderPdfSlide(); triggerCooldown(); }
+      }
+    }
+
+    function triggerCooldown() {
+      isGestureCooldown = true;
+      webcamVideo.style.borderColor = 'var(--color-accent)';
+      webcamVideo.style.borderWidth = '4px';
+      setTimeout(() => {
+        isGestureCooldown = false;
+        webcamVideo.style.borderColor = 'var(--color-border)';
+        webcamVideo.style.borderWidth = '1px';
+      }, GESTURE_COOLDOWN);
+    }
+
+    document.getElementById("next-btn").addEventListener("click", next);
+    document.getElementById("prev-btn").addEventListener("click", prev);
+    document.getElementById("back-btn").addEventListener("click", () => switchView('input'));
+
+    // --- GESTURE & WEBCAM CONTROL LOGIC ---
+    const gestureToggleBtn = document.getElementById('gesture-toggle-btn');
+    
+    // Toggle Function
+    async function toggleGestures() {
+      gesturesEnabled = !gesturesEnabled;
+      
+      if (gesturesEnabled) {
+        // TURN ON
+        gestureToggleBtn.innerHTML = '<span class="w-2 h-2 rounded-full bg-green-500"></span> Gestures: ON';
+        gestureToggleBtn.classList.remove('disabled');
+        webcamVideo.style.display = 'block'; 
+        await setupWebcamAI(); 
+      } else {
+        // TURN OFF
+        gestureToggleBtn.innerHTML = '<span class="w-2 h-2 rounded-full bg-red-500"></span> Gestures: OFF';
+        gestureToggleBtn.classList.add('disabled');
+        webcamVideo.style.display = 'none'; 
+        stopWebcamAI(); 
+      }
+    }
+
+    gestureToggleBtn.addEventListener('click', toggleGestures);
+
+    function setLoading(bool) {
+      const btn = document.getElementById("generate-btn");
+      const txt = document.getElementById("generate-btn-text");
+      const spin = document.getElementById("loading-spinner");
+      btn.disabled = bool;
+      if (bool) { txt.innerText = "Dreaming up slides..."; spin.classList.remove("hidden"); }
+      else { txt.innerText = "Generate Presentation"; spin.classList.add("hidden"); }
+    }
+
+    // --- AI GESTURE LOOP ---
+    async function setupWebcamAI() {
+      if (webcamStream) return; 
+      try {
+        webcamStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        webcamVideo.srcObject = webcamStream;
+        await new Promise(r => webcamVideo.onloadedmetadata = r);
+        
+        if (!detector) {
+            detector = await poseDetection.createDetector(poseDetection.SupportedModels.MoveNet, {
+            modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING
+            });
+        }
+        detectLoop();
+      } catch (e) { 
+          console.error(e);
+          alert("Camera access denied or unavailable.");
+          gesturesEnabled = false; 
+      }
+    }
+
+    function stopWebcamAI() {
+      if (webcamStream) { 
+        webcamStream.getTracks().forEach(t => t.stop()); 
+        webcamStream = null; 
+        webcamVideo.srcObject = null;
+      }
+    }
+
+    async function detectLoop() {
+      if (!gesturesEnabled || !detector) return;
+      
+      try {
+        const poses = await detector.estimatePoses(webcamVideo);
+        if (poses.length > 0) {
+          const kp = poses[0].keypoints;
+          const find = n => kp.find(k => k.name === n);
+          const rw = find('right_wrist'), re = find('right_elbow');
+          const lw = find('left_wrist'), le = find('left_elbow');
+          
+          if (rw.score > 0.3 && re.score > 0.3 && rw.y < re.y) next();
+          else if (lw.score > 0.3 && le.score > 0.3 && lw.y < le.y) prev();
+        }
+      } catch(e) {}
+      
+      if (gesturesEnabled) requestAnimationFrame(detectLoop);
+    }
+  </script>
+</body>
+</html>
