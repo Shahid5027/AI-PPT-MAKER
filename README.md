@@ -50,7 +50,7 @@ This project is built as a **Single File Application**. No Node.js backend, Pyth
 To make the AI generation work, you must add your own API keys in the `index.html` file (Script section):
 
 1.  Open `index.html` in a code editor.
-2.  Find the `// --- CONFIG ---` section (approx line 350).
+2.  Find the `// --- CONFIG ---` section (approx line 358).
 3.  Insert your keys:
     ```javascript
     const apiKey = "YOUR_GEMINI_API_KEY"; 
