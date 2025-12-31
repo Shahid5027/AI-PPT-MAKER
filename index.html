@@ -177,8 +177,8 @@
       background: var(--color-accent); color: var(--color-accent-dark);
     }
     
-    /* GESTURE TOGGLE BTN */
-    #gesture-toggle-btn {
+    /* GESTURE TOGGLE & CAM VIEW BTNS */
+    #gesture-toggle-btn, #cam-view-btn {
       background: rgba(0, 0, 0, 0.9);
       border: 1px solid var(--color-border);
       color: var(--color-text);
@@ -186,7 +186,7 @@
       transition: all 0.3s ease;
     }
 
-    #gesture-toggle-btn:hover {
+    #gesture-toggle-btn:hover, #cam-view-btn:hover {
       background: var(--color-panel);
       border-color: var(--color-accent);
     }
@@ -258,6 +258,7 @@
       object-fit: cover; background: #111; position: fixed; bottom: 4px; left: 4px; z-index: 20;
       /* Hidden by default until toggled ON */
       display: none; 
+      transition: opacity 0.3s ease;
     }
     
     #watermark {
@@ -340,6 +341,10 @@
       Download .pptx ⬇
     </button>
 
+    <button id="cam-view-btn" class="fixed bottom-48 left-4 z-50 text-xs px-2 py-1 flex items-center gap-2 hidden">
+      <span>👁️</span> Hide Feed
+    </button>
+
     <button id="gesture-toggle-btn" class="fixed bottom-36 left-4 z-50 text-xs px-2 py-1 flex items-center gap-2 disabled">
         <span id="gesture-indicator" class="w-2 h-2 rounded-full bg-red-500"></span>
         Gestures: OFF
@@ -350,9 +355,9 @@
 
   <script type="module">
     // --- CONFIG ---
-    const apiKey = "ENTER_API_KEY"; 
+    const apiKey = "AIzaSyDae7boLvXHFNWGj5rqaFsugv3M3sISVt0"; 
     // Pollinations Key maintained
-    const POLLINATIONS_KEY = "ENTER_KEY";
+    const POLLINATIONS_KEY = "sk_vBug9ZMlqfw1HIR0GOsC710ugfWU9ECq";
 
     const MODEL_NAME = "gemini-2.5-flash-preview-09-2025";
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${apiKey}`;
@@ -368,6 +373,7 @@
     let detector, webcamStream;
     let isGestureCooldown = false;
     let gesturesEnabled = false; 
+    let cameraVisualHidden = false; // State for visual visibility
     const GESTURE_COOLDOWN = 1500;
 
     // --- DOM ---
@@ -380,6 +386,7 @@
     const downloadBtn = document.getElementById("download-btn");
     const webcamVideo = document.getElementById('webcam');
     const imageUploadInput = document.getElementById('slide-image-upload');
+    const camViewBtn = document.getElementById('cam-view-btn');
     
     // --- THEME LOGIC ---
     document.querySelectorAll('input[name="theme"]').forEach(r => {
@@ -655,17 +662,40 @@
         gestureToggleBtn.innerHTML = '<span class="w-2 h-2 rounded-full bg-green-500"></span> Gestures: ON';
         gestureToggleBtn.classList.remove('disabled');
         webcamVideo.style.display = 'block'; 
+        
+        // Show the camera visibility toggle button
+        camViewBtn.classList.remove('hidden');
+        camViewBtn.classList.add('flex');
+        
         await setupWebcamAI(); 
       } else {
         // TURN OFF
         gestureToggleBtn.innerHTML = '<span class="w-2 h-2 rounded-full bg-red-500"></span> Gestures: OFF';
         gestureToggleBtn.classList.add('disabled');
         webcamVideo.style.display = 'none'; 
+        
+        // Hide the camera visibility toggle button
+        camViewBtn.classList.add('hidden');
+        camViewBtn.classList.remove('flex');
+        
         stopWebcamAI(); 
       }
     }
 
+    // Toggle Camera Visibility (Visual Only - AI still sees)
+    function toggleCameraView() {
+      cameraVisualHidden = !cameraVisualHidden;
+      if(cameraVisualHidden) {
+        webcamVideo.style.opacity = '0';
+        camViewBtn.innerHTML = '<span>📷</span> Show Feed';
+      } else {
+        webcamVideo.style.opacity = '1';
+        camViewBtn.innerHTML = '<span>👁️</span> Hide Feed';
+      }
+    }
+
     gestureToggleBtn.addEventListener('click', toggleGestures);
+    camViewBtn.addEventListener('click', toggleCameraView);
 
     function setLoading(bool) {
       const btn = document.getElementById("generate-btn");
@@ -709,6 +739,7 @@
       if (!gesturesEnabled || !detector) return;
       
       try {
+        // Even if opacity is 0, the detector can still read the video element as long as display is block
         const poses = await detector.estimatePoses(webcamVideo);
         if (poses.length > 0) {
           const kp = poses[0].keypoints;
@@ -725,5 +756,4 @@
     }
   </script>
 </body>
-
 </html>
